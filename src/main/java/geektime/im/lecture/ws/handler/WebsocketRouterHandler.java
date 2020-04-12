@@ -1,5 +1,6 @@
 package geektime.im.lecture.ws.handler;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import geektime.im.lecture.service.MessageService;
@@ -11,12 +12,15 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
+import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
@@ -30,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @ChannelHandler.Sharable
 @Component
 public class WebsocketRouterHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
-    private static final ConcurrentHashMap<Long, Channel> userChannel = new ConcurrentHashMap<>(15000);
+    private static final ConcurrentHashMap<Long, List<Channel>> userChannel = new ConcurrentHashMap<>(15000);
     private static final ConcurrentHashMap<Channel, Long> channelUser = new ConcurrentHashMap<>(15000);
     private ScheduledExecutorService executorService = new ScheduledThreadPoolExecutor(50, new EnhancedThreadFactory("ackCheckingThreadPool"));
     private static final Logger logger = LoggerFactory.getLogger(WebsocketRouterHandler.class);
@@ -56,8 +60,17 @@ public class WebsocketRouterHandler extends SimpleChannelInboundHandler<WebSocke
                     break;
                 case 1://上线消息
                     long loginUid = data.getLong("uid");
-                    userChannel.put(loginUid, ctx.channel());
+                    System.out.println("===============loginUid:"+loginUid);
+                    List<Channel> channels = userChannel.get(loginUid);
+                    if(channels==null){
+                        channels = new ArrayList<>();
+
+                    }
+                    channels.add(ctx.channel());
+                    userChannel.put(loginUid,channels);
                     channelUser.put(ctx.channel(), loginUid);
+                    System.out.println("========userchannel:"+userChannel.size());
+                    System.out.println("========channelUser:"+channelUser.size());
                     ctx.channel().attr(TID_GENERATOR).set(new AtomicLong(0));
                     ctx.channel().attr(NON_ACKED_MAP).set(new ConcurrentHashMap<Long, JSONObject>());
                     logger.info("[user bind]: uid = {} , channel = {}", loginUid, ctx.channel());
@@ -114,7 +127,11 @@ public class WebsocketRouterHandler extends SimpleChannelInboundHandler<WebSocke
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        logger.info("[channelClosed]:remote address is {} ", ctx.channel().remoteAddress());
+        logger.info("close=======[channelClosed]:remote address is {} ", ctx.channel().remoteAddress());
+        this.cleanUserChannel(ctx.channel());
+        System.out.println("========userchannel:"+userChannel.size());
+        System.out.println("========userchannel:"+channelUser.size());
+
     }
 
     @Override
@@ -124,22 +141,31 @@ public class WebsocketRouterHandler extends SimpleChannelInboundHandler<WebSocke
     }
 
     public void pushMsg(long recipientUid, JSONObject message) {
-        Channel channel = userChannel.get(recipientUid);
-        if (channel != null && channel.isActive() && channel.isWritable()) {
-            AtomicLong generator = channel.attr(TID_GENERATOR).get();
-            long tid = generator.incrementAndGet();
-            message.put("tid", tid);
-            channel.writeAndFlush(new TextWebSocketFrame(message.toJSONString())).addListener(future -> {
-                if (future.isCancelled()) {
-                    logger.warn("future has been cancelled. {}, channel: {}", message, channel);
-                } else if (future.isSuccess()) {
-                    addMsgToAckBuffer(channel, message);
-                    logger.warn("future has been successfully pushed. {}, channel: {}", message, channel);
-                } else {
-                    logger.error("message write fail, {}, channel: {}", message, channel, future.cause());
-                }
-            });
+        System.out.println("==========userChannel:"+JSON.toJSON(userChannel));
+        List<Channel> channels = userChannel.get(recipientUid);
+        if(CollectionUtils.isEmpty(channels)){
+            return;
         }
+        for (Channel channel : channels) {
+            if (channel != null && channel.isActive() && channel.isWritable()) {
+                AtomicLong generator = channel.attr(TID_GENERATOR).get();
+                long tid = generator.incrementAndGet();
+                message.put("tid", tid);
+                channel.writeAndFlush(new TextWebSocketFrame(message.toJSONString())).addListener(future -> {
+                    if (future.isCancelled()) {
+                        logger.warn("future has been cancelled. {}, channel: {}", message, channel);
+                    } else if (future.isSuccess()) {
+                        addMsgToAckBuffer(channel, message);
+                        System.out.println();
+                        logger.warn("future has been successfully pushed. {}, channel: {}", message, channel);
+                    } else {
+                        logger.error("message write fail, {}, channel: {}", message, channel, future.cause());
+                    }
+                });
+            }
+        }
+
+
     }
 
     /**
@@ -148,8 +174,27 @@ public class WebsocketRouterHandler extends SimpleChannelInboundHandler<WebSocke
      * @param channel
      */
     public void cleanUserChannel(Channel channel) {
-        long uid = channelUser.remove(channel);
-        userChannel.remove(uid);
+        if(channelUser==null){
+            System.out.println("channeluser:==null");
+        }
+        if(channel ==null){
+            System.out.println("channel==null");
+        }
+
+        Long aLong = channelUser.get(channel);
+        if(aLong == null){
+            System.out.println("============chanelUser没有这个key====");
+            return;
+        }
+
+         long    uid = channelUser.remove(channel);
+        List<Channel> channels = userChannel.get(uid);
+        if(!CollectionUtils.isEmpty(channels) && channels.contains(channel)){
+            channels.remove(channel);
+            if(channels.size()==0){
+                userChannel.remove(uid);
+            }
+        }
         logger.info("[cleanChannel]:remove uid & channel info from gateway, uid is {}, channel is {}", uid, channel);
     }
 
@@ -161,6 +206,10 @@ public class WebsocketRouterHandler extends SimpleChannelInboundHandler<WebSocke
      */
     public void addMsgToAckBuffer(Channel channel, JSONObject msgJson) {
         channel.attr(NON_ACKED_MAP).get().put(msgJson.getLong("tid"), msgJson);
+//        System.out.println("=======NON_ACKED_MAP:"+channel.attr(NON_ACKED_MAP).get().size());
+        Attribute<ConcurrentHashMap> attr = channel.attr(NON_ACKED_MAP);
+        ConcurrentHashMap concurrentHashMap = attr.get();
+//        System.out.println("=======NON_ACKED_MAP:"+JSON.toJSONString(concurrentHashMap));
         executorService.schedule(() -> {
             if (channel.isActive()) {
                 checkAndResend(channel, msgJson);

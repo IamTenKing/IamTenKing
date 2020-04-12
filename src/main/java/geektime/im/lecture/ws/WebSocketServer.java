@@ -75,6 +75,7 @@ public class WebSocketServer {
                 //再添加服务端业务消息的总处理器
                 pipeline.addLast(websocketRouterHandler);
                 //服务端添加一个idle处理器，如果一段时间socket中没有消息传输，服务端会强制断开
+                //可以设置读、写空闲的时间，此处都设定为0
                 pipeline.addLast(new IdleStateHandler(0, 0, serverConfig.getAllIdleSecond()));
                 pipeline.addLast(closeIdleChannelHandler);
 

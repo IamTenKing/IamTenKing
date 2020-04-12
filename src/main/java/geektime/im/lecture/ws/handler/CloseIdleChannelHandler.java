@@ -27,10 +27,15 @@ public class CloseIdleChannelHandler extends ChannelDuplexHandler {
 
         if (evt instanceof IdleStateEvent) {
             IdleStateEvent event = (IdleStateEvent) evt;
+            //all_idle指的是读idle和写idle同时满足，另外还可以单独再处理读idle和写idle
             if (event.state() == IdleState.ALL_IDLE) {
                 logger.info("connector no receive ping packet from client,will close.,channel:{}", ctx.channel());
                 websocketRouterHandler.cleanUserChannel(ctx.channel());
                 ctx.close();
+            }else if(event.state() == IdleState.READER_IDLE){
+                System.out.println("触发读idle");
+            }else if(event.state() == IdleState.WRITER_IDLE){
+                System.out.println("触发写Idle");
             }
         }
     }

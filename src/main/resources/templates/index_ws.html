@@ -90,8 +90,74 @@
             </table>
         </div>
     </div>
+    <div class="col-xs-6 w-50">
+        <h4 align="center" class="w-50 sub-header pl-5">所有群</h4>
+        <input hidden="true" id="sender_id1" th:if="${loginUser} != null" th:value="${loginUser.uid}"/>
+        <input hidden="true"
+               id="sender_name1"
+               th:if="${loginUser} != null"
+               th:value="${loginUser.username}"/>
+        <input hidden="true"
+               id="sender_avatar1"
+               th:if="${loginUser} != null"
+               th:value="${loginUser.avatar}"/>
+        <div class="table-responsive text-center pl-5">
+            <table class="table table-hover table-bordered w-50">
+                <thead class="w-50 bg-success">
+                <th>头像</th>
+                <th>昵称</th>
+                <th>操作</th>
+                </thead>
+                <tbody class="w-75">
+                <tr th:if="${user} != null" th:each=" user : ${otherUsers}">
+                    <td><img width="50px" th:src="@{'/images/'+${user.avatar}}"/></td>
+                    <td th:text="${user.username}"></td>
+                    <td>
+                        <button type="button" class="btn btn-info" data-toggle="modal" data-target="#chatModal"
+                                th:attr="data-recipient_id=${user.uid},data-recipient_name=${user.username}">和他聊天
+                        </button>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
+<div class="row">
 
+    <div class="col-xs-6 w-50">
+        <h4 align="center" class="w-50 sub-header pl-5">所有群</h4>
+        <input hidden="true" id="sender_id1" th:if="${loginUser} != null" th:value="${loginUser.uid}"/>
+        <input hidden="true"
+               id="sender_name1"
+               th:if="${loginUser} != null"
+               th:value="${loginUser.username}"/>
+        <input hidden="true"
+               id="sender_avatar1"
+               th:if="${loginUser} != null"
+               th:value="${loginUser.avatar}"/>
+        <div class="table-responsive text-center pl-5">
+            <table class="table table-hover table-bordered w-50">
+                <thead class="w-50 bg-success">
+                <th>头像</th>
+                <th>昵称</th>
+                <th>操作</th>
+                </thead>
+                <tbody class="w-75">
+                <tr th:if="${user} != null" th:each=" user : ${otherUsers}">
+                    <td><img width="50px" th:src="@{'/images/'+${user.avatar}}"/></td>
+                    <td th:text="${user.username}"></td>
+                    <td>
+                        <button type="button" class="btn btn-info" data-toggle="modal" data-target="#chatModal"
+                                th:attr="data-recipient_id=${user.uid},data-recipient_name=${user.username}">和他聊天
+                        </button>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 <div class="modal fade" id="chatModal" tabindex="-1" role="dialog" aria-labelledby="chatPaneLabel">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
